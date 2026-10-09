@@ -16,6 +16,10 @@ PROGRESS = os.path.join(OUT, "_progress.json")
 STATS = os.path.join(OUT, "_stats.json")
 FALLBACK_UNIVERSE = os.environ.get("STOCKS_UNIVERSE_FALLBACK") or os.path.join(ROOT, "data", "market", "all_2026-09-18.txt")
 WATCHLIST = os.environ.get("STOCKS_WATCHLIST") or os.path.join(ROOT, "tools", "watchlist.txt")
+if not os.path.exists(WATCHLIST):
+    # Actions env: watchlist is in config/watchlist.txt instead of tools/watchlist.txt
+    _alt = os.path.join(ROOT, "config", "watchlist.txt")
+    WATCHLIST = _alt if os.path.exists(_alt) else WATCHLIST
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120"
 FREQS = [("day_qfq", "day", 800, "qfq"), ("day_raw", "day", 800, ""), ("week", "week", 320, "qfq"),
          ("month", "month", 320, "qfq"), ("m60", "m60", 320, "")]
