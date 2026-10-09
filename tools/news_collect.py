@@ -6,7 +6,7 @@ ROOT = sys.argv[1]
 CN = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)
 DATE = CN.strftime("%Y-%m-%d")
 NOW = CN.strftime("%H:%M")
-NEWS = os.path.join(ROOT, "消息面")
+NEWS = os.environ.get("STOCKS_NEWS_DIR") or os.path.join(ROOT, "消息面")
 os.makedirs(NEWS, exist_ok=True)
 SEEN = os.path.join(NEWS, ".seen_ids.txt")
 seen = set()
