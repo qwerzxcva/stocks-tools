@@ -1,0 +1,113 @@
+# watchlist: `code name` (name is ASCII)
+[INDEX]
+sh000001 SHComp
+sz399001 SZComp
+sz399006 ChiNext
+sh000688 STAR50
+sh000300 CSI300
+bj899050 BSE50
+
+[PHARMA]
+sh600276 Hengrui
+sz000963 HuadongMed
+sh600521 HuahaiPharm
+sh603259 WuXiAppTec
+sh603087 GanLee
+
+[AI-OPTICS]
+sz300308 Innolight
+sz300502 Eoptolink
+sh603986 GigaDevice
+sz300857 Sharetronic
+
+[HUAWEI]
+sz000063 ZTE
+sz002261 Tuowei
+sz000158 Changshan
+sz000034 DigitalChina
+
+[POWER]
+sh600863 Mengdian
+sz000543 Wanneng
+sh600011 Huaneng
+sh600644 LeshanPower
+
+[OIL]
+sh600938 CNOOC
+sh603619 Zhongman
+sh600256 Guanghui
+
+[GOLD]
+sh600988 ChifengGold
+sz002155 HunanGold
+
+[AIRLINE]
+sh601111 AirChina
+sh600029 CSAir
+
+[CONSUMER]
+sh600690 Haier
+sz000651 Gree
+sz000858 Wuliangye
+
+[EV]
+sz002594 BYD
+sz300750 CATL
+
+[CSI-SECTOR]
+sh000928 CSIEnergy
+sh000929 CSIMaterial
+sh000930 CSIIndustrial
+sh000931 CSIConsDisc
+sh000932 CSIConsumer
+sh000933 CSIHealth
+sh000934 CSIFinance
+sh000935 CSIIT
+sh000936 CSITelecom
+sh000937 CSIUtility
+
+# added 2026-09-20 from eastmoney capital-flow leaders (fills coverage gap)
+[SEMI-CHAIN]
+sz002185 Huatie
+sh600584 JCET
+sz002156 TFME
+sh688825 CXMT
+sz300394 TFC
+sz002281 Accelink
+sh688521 VeriSilicon
+sz000938 Unisplendour
+
+[ETF-BROAD]
+sh510300 CSI300ETF
+sh510500 CSI500ETF
+sh588000 STAR50ETF
+sz159915 ChiNextETF
+sh510050 SSE50ETF
+
+[ETF-SECTOR]
+sh512760 ChipETF
+sh512480 SemiETF
+sh515880 TelecomETF
+sh512880 BrokerETF
+sh512800 BankETF
+sh512010 PharmaETF
+sh512170 HealthETF
+sh512660 DefenseETF
+sh516110 AutoETF
+sh515030 NEVETF
+sh512400 MetalETF
+sh515220 CoalETF
+sh512690 LiquorETF
+sh512980 MediaETF
+sh515790 SolarETF
+sh516160 NewEnergyETF
+sh515000 TechETF
+
+[OTHER]
+sh600522 Zhongtian
+sh600114 Dongmu
+sh600552 Triumph
+sz000519 NorthArrow
+sh600172 Whirlwind
+sz002912 Sinovatio
+sz002212 Topsec
