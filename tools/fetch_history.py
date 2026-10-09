@@ -110,6 +110,10 @@ for code, name, _ in [("sh000001","上证综指"),("sh000300","沪深300"),("sz3
 target_dates = ["2026-09-22","2026-09-23","2026-09-24","2026-09-28","2026-09-29","2026-09-30"]
 idx_codes = ["sh000001","sh000300","sh000688","sz399001","sz399006"]
 di_path = os.path.join(os.path.dirname(__file__), "..", "data", "daily_index.txt")
+if not os.path.exists(di_path):
+    # actions / fresh-checkout mode: file missing -> create empty and skip append
+    with open(di_path, "w", encoding="utf-8") as _f:
+        _f.write("# date|code|name|open|close|high|low|vol|chg|amp\n")
 # load existing data for prev closes
 existing = {}
 for l in open(di_path, encoding='utf-8'):
