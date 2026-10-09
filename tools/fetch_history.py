@@ -79,7 +79,7 @@ except Exception as e:
 
 # generate yearly CSV for each daily file
 from collections import defaultdict
-for code, name, _ in [("sh000001","上证综指"),("sh000300","沪深300"),("sz399001","深证成指"),("sz399006","创业板指")]:
+for code, name in [("sh000001","上证综指"),("sh000300","沪深300"),("sz399001","深证成指"),("sz399006","创业板指")]:
     months = []
     for l in open(os.path.join(OUT, f"{code}.month.txt"), encoding='utf-8'):
         if l.startswith('#') or '|' not in l: continue
