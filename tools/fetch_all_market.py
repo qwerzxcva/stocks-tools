@@ -109,7 +109,7 @@ def load_universe():
                 print(f"universe from eastmoney clist: {len(rows)}", flush=True)
     except Exception as e:
         print(f"clist failed ({e}), using fallback", flush=True)
-    if not rows:
+    if not rows and os.path.exists(FALLBACK_UNIVERSE):
         for l in open(FALLBACK_UNIVERSE, encoding="utf-8"):
             if l.startswith("#") or "|" not in l:
                 continue
@@ -166,7 +166,6 @@ def main():
             freq_files[fq][i] = open(p, "a", encoding="utf-8")
             freq_files[fq][i].write(f"# allmarket {fq} shard {i} (code|date|open|close|high|low|vol)\n")
 
-    # resume: skip codes already fully done (all FREQS fetched)
     # resume: skip codes already fully done (all FREQS fetched)
     done_set = {c for c, n in progress.get("done", {}).items() if n == len(FREQS)}
     todo = [c for c in universe if c not in done_set]
