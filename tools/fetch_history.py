@@ -111,6 +111,7 @@ target_dates = ["2026-09-22","2026-09-23","2026-09-24","2026-09-28","2026-09-29"
 idx_codes = ["sh000001","sh000300","sh000688","sz399001","sz399006"]
 di_path = os.path.join(os.path.dirname(__file__), "..", "data", "daily_index.txt")
 if not os.path.exists(di_path):
+    os.makedirs(os.path.dirname(di_path), exist_ok=True)
     # actions / fresh-checkout mode: file missing -> create empty and skip append
     with open(di_path, "w", encoding="utf-8") as _f:
         _f.write("# date|code|name|open|close|high|low|vol|chg|amp\n")
