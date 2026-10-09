@@ -166,8 +166,10 @@ def main():
             freq_files[fq][i] = open(p, "a", encoding="utf-8")
             freq_files[fq][i].write(f"# allmarket {fq} shard {i} (code|date|open|close|high|low|vol)\n")
 
-    todo = [c for c in universe if c not in progress.get("done", {}).get(c, [0]) or True]
-    done_set = {c for c, fs in progress.get("done", {}).items() if fs == len(FREQS)}
+    # resume: skip codes already fully done (all FREQS fetched)
+    # resume: skip codes already fully done (all FREQS fetched)
+    done_set = {c for c, n in progress.get("done", {}).items() if n == len(FREQS)}
+    todo = [c for c in universe if c not in done_set]
 
     q = list(universe)
     idx = 0
