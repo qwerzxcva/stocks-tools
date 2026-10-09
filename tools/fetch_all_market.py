@@ -10,12 +10,12 @@ usage: python3 tools/fetch_all_market.py [workers]
 import csv, json, os, sys, threading, time, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "data", "allmarket")
+OUT = os.environ.get("STOCKS_KLINE_OUT") or os.path.join(ROOT, "data", "allmarket")
 UNIVERSE = os.path.join(OUT, "universe.csv")
 PROGRESS = os.path.join(OUT, "_progress.json")
 STATS = os.path.join(OUT, "_stats.json")
-FALLBACK_UNIVERSE = os.path.join(ROOT, "data", "market", "all_2026-09-18.txt")
-WATCHLIST = os.path.join(ROOT, "tools", "watchlist.txt")
+FALLBACK_UNIVERSE = os.environ.get("STOCKS_UNIVERSE_FALLBACK") or os.path.join(ROOT, "data", "market", "all_2026-09-18.txt")
+WATCHLIST = os.environ.get("STOCKS_WATCHLIST") or os.path.join(ROOT, "tools", "watchlist.txt")
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120"
 FREQS = [("day_qfq", "day", 800, "qfq"), ("day_raw", "day", 800, ""), ("week", "week", 320, "qfq"),
          ("month", "month", 320, "qfq"), ("m60", "m60", 320, "")]
@@ -118,6 +118,19 @@ def load_universe():
             mkt = "sh" if c[0] == "6" else ("bj" if c.startswith(("8", "4", "9")) else "sz")
             rows.append(f"{mkt}{c}|{name}|{mkt}")
         print(f"universe from fallback file: {len(rows)}", flush=True)
+    # Support STOCKS_UNIVERSE_FILE for Actions env (e.g., meta/universe.csv with format: code|name|market)
+    uf = os.environ.get("STOCKS_UNIVERSE_FILE")
+    if uf and os.path.exists(uf):
+        extras = []
+        for l in open(uf, encoding="utf-8"):
+            if l.startswith("#") or "|" not in l: continue
+            p = l.rstrip().split("|")
+            if len(p) < 3: continue
+            c,name,mkt = p[0].strip(), p[1].strip(), p[2].strip()
+            if c: extras.append(f"{c}|{name}|{mkt}")
+        seen = {r.split("|")[0] for r in rows}
+        rows += [e for e in extras if e.split("|")[0] not in seen]
+        print(f"universe from STOCKS_UNIVERSE_FILE: +{len(extras)} codes (total {len(rows)})", flush=True)
     # add watchlist indices & ETFs
     seen = {r.split("|")[0] for r in rows}
     for l in open(WATCHLIST, encoding="utf-8"):

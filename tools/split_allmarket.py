@@ -6,8 +6,8 @@ Output: ~/workspace/stocks-data-kline/data/{day,week,month}/{code}.csv
 """
 import glob, os, re, shutil
 
-SRC = "/root/workspace/stocks/data/allmarket"
-DST = "/root/workspace/stocks-data-kline/data"
+SRC = os.environ.get("STOCKS_KLINE_SRC") or "/root/workspace/stocks/data/allmarket"
+DST = os.environ.get("STOCKS_KLINE_DST") or "/root/workspace/stocks-data-kline/data"
 META = "/root/workspace/stocks-data-kline/meta"
 MAP = {"day_qfq": ("day", "qfq daily, ~800 bars"), "week": ("week", "qfq weekly, ~320 bars"),
        "month": ("month", "qfq monthly, ~320 bars")}
