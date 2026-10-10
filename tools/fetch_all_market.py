@@ -25,6 +25,10 @@ FREQS = [("day_qfq", "day", 800, "qfq"), ("day_raw", "day", 800, ""), ("week", "
          ("month", "month", 320, "qfq"), ("m60", "m60", 320, "")]
 SHARDS = 10
 WAF_WAIT = [30, 90, 240, 600, 1800]
+# Total wait budget per WAF-blocked request (seconds). WAF-blocked freqs (day_raw/m60)
+# get abandoned after the budget instead of burning 30+90+240+600+1800s per request.
+WAF_BUDGET = int(os.environ.get("STOCKS_KLINE_WAF_BUDGET", "360"))
+CKPT_WALL = int(os.environ.get("STOCKS_KLINE_CKPT_WALL", "1800"))  # force checkpoint every 30min
 
 lock = threading.Lock()
 progress = {"done": {}, "failed": [], "waf_blocks": 0, "last_waf": 0}
@@ -52,6 +56,7 @@ def fetch_kline(code, freq, cnt, fq):
     if freq == "m60":
         url = f"https://web.ifzq.gtimg.cn/appstock/app/kline/mkline/get?param={code},m60,,{cnt}"
     last_err = ""
+    wait_used = 0
     for waf_i in range(len(WAF_WAIT) + 1):
         for attempt in range(2):
             try:
@@ -78,9 +83,12 @@ def fetch_kline(code, freq, cnt, fq):
                     progress["waf_blocks"] += 1
                     progress["last_waf"] = time.time()
                 wait = WAF_WAIT[min(waf_i, len(WAF_WAIT) - 1)]
+                if wait_used + wait > WAF_BUDGET:
+                    return None  # abandon this freq, retry next run
                 if waf_i == len(WAF_WAIT):
                     return None
-                print(f"  WAF blocked, waiting {wait}s ...", flush=True)
+                wait_used += wait
+                print(f"  WAF blocked, waiting {wait}s (budget {wait_used}/{WAF_BUDGET}) ...", flush=True)
                 time.sleep(wait)
                 break
             except Exception as e:
@@ -178,11 +186,15 @@ def main():
     idx = 0
     stop = threading.Event()
     last_checkpoint = [0]  # mutable counter shared across threads via lock
+    ckpt_lock = threading.Lock()
+    ckpt_last_ts = [time.time()]
 
-    def do_checkpoint():
+    def do_checkpoint(force=False):
         """Save _progress + commit+push the bulk files (no-op on failure)."""
         if not is_actions:
             return
+        if not force and not ckpt_lock.acquire(blocking=False):
+            return  # another checkpoint in flight
         try:
             ws = os.environ.get("GITHUB_WORKSPACE", "")
             save_progress()
@@ -196,8 +208,22 @@ def main():
                 subprocess.run(["git", "-C", ws, "commit", "-m", f"nightly-kline checkpoint {ts}"], check=False, capture_output=True)
                 subprocess.run(["git", "-C", ws, "-c", "http.version=HTTP/1.1", "push", "origin", "main"], check=False, capture_output=True)
                 print(f"[checkpoint] committed & pushed {len(progress.get('done', {}))} codes done", flush=True)
+            with lock:
+                ckpt_last_ts[0] = time.time()
         except Exception as exc:
             print(f"[checkpoint] failed ({exc})", flush=True)
+        finally:
+            if force:
+                ckpt_lock.release()
+
+    def ckpt_watcher():
+        """Force a checkpoint every CKPT_WALL seconds so a cancelled run loses < 30min of work."""
+        while not stop.is_set():
+            time.sleep(min(300, CKPT_WALL))
+            with lock:
+                due = time.time() - ckpt_last_ts[0] >= CKPT_WALL
+            if due:
+                do_checkpoint(force=True)
 
     def worker():
         nonlocal idx, last_checkpoint
@@ -244,6 +270,9 @@ def main():
     threads = [threading.Thread(target=worker) for _ in range(workers)]
     for t in threads:
         t.start()
+    if is_actions:
+        watcher = threading.Thread(target=ckpt_watcher, daemon=True)
+        watcher.start()
     for t in threads:
         t.join()
     for i in range(SHARDS):
