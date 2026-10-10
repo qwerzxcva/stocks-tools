@@ -28,7 +28,7 @@ WAF_WAIT = [30, 90, 240, 600, 1800]
 # Total wait budget per WAF-blocked request (seconds). WAF-blocked freqs (day_raw/m60)
 # get abandoned after the budget instead of burning 30+90+240+600+1800s per request.
 WAF_BUDGET = int(os.environ.get("STOCKS_KLINE_WAF_BUDGET", "360"))
-CKPT_WALL = int(os.environ.get("STOCKS_KLINE_CKPT_WALL", "1800"))  # force checkpoint every 30min
+CKPT_WALL = int(os.environ.get("STOCKS_KLINE_CKPT_WALL", "600"))  # force checkpoint every 10min
 
 lock = threading.Lock()
 progress = {"done": {}, "failed": [], "waf_blocks": 0, "last_waf": 0}
@@ -193,7 +193,10 @@ def main():
         """Save _progress + commit+push the bulk files (no-op on failure)."""
         if not is_actions:
             return
-        if not force and not ckpt_lock.acquire(blocking=False):
+        if force:
+            if not ckpt_lock.acquire(timeout=120):
+                return
+        elif not ckpt_lock.acquire(blocking=False):
             return  # another checkpoint in flight
         try:
             ws = os.environ.get("GITHUB_WORKSPACE", "")
@@ -206,15 +209,19 @@ def main():
             if r.returncode != 0:  # actual changes
                 ts = time.strftime("%Y%m%d_%H%M")
                 subprocess.run(["git", "-C", ws, "commit", "-m", f"nightly-kline checkpoint {ts}"], check=False, capture_output=True)
-                subprocess.run(["git", "-C", ws, "-c", "http.version=HTTP/1.1", "push", "origin", "main"], check=False, capture_output=True)
-                print(f"[checkpoint] committed & pushed {len(progress.get('done', {}))} codes done", flush=True)
+                p = subprocess.run(["git", "-C", ws, "-c", "http.version=HTTP/1.1", "push", "origin", "main"], check=False, capture_output=True)
+                if p.returncode != 0:
+                    # push failed: undo the local commit so the NEXT checkpoint re-commits & re-pushes
+                    subprocess.run(["git", "-C", ws, "reset", "--soft", "HEAD~1"], check=False, capture_output=True)
+                    print(f"[checkpoint] push failed, kept changes staged for retry", flush=True)
+                else:
+                    print(f"[checkpoint] committed & pushed {len(progress.get('done', {}))} codes done", flush=True)
             with lock:
                 ckpt_last_ts[0] = time.time()
         except Exception as exc:
             print(f"[checkpoint] failed ({exc})", flush=True)
         finally:
-            if force:
-                ckpt_lock.release()
+            ckpt_lock.release()
 
     def ckpt_watcher():
         """Force a checkpoint every CKPT_WALL seconds so a cancelled run loses < 30min of work."""
