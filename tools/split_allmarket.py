@@ -6,9 +6,13 @@ Output: ~/workspace/stocks-data-kline/data/{day,week,month}/{code}.csv
 """
 import glob, os, re, shutil
 
-SRC = os.environ.get("STOCKS_KLINE_SRC") or "/root/workspace/stocks/data/allmarket"
-DST = os.environ.get("STOCKS_KLINE_DST") or "/root/workspace/stocks-data-kline/data"
-META = "/root/workspace/stocks-data-kline/meta"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WS = os.environ.get("GITHUB_WORKSPACE", "")
+# local layout: sibling ~/workspace/stocks-data-kline; Actions: GITHUB_WORKSPACE is the kline repo itself
+KLINE_REPO = WS or os.path.join(ROOT, "..", "stocks-data-kline")
+SRC = os.environ.get("STOCKS_KLINE_SRC") or os.path.join(ROOT, "data", "allmarket")
+DST = os.environ.get("STOCKS_KLINE_DST") or os.path.join(KLINE_REPO, "data")
+META = os.environ.get("STOCKS_KLINE_META") or os.path.join(KLINE_REPO, "meta")
 MAP = {"day_qfq": ("day", "qfq daily, ~800 bars"), "week": ("week", "qfq weekly, ~320 bars"),
        "month": ("month", "qfq monthly, ~320 bars")}
 CODE_RE = re.compile(r"^(sh|sz|bj)\d{6}$")

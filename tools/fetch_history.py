@@ -6,8 +6,10 @@ Saves to: output_dir/*.txt, *.month.txt, *.week.txt, *.yearly.csv
 """
 import json, os, sys, subprocess, time
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "data", "kline", "history")
-os.makedirs(OUT, exist_ok=True)
+TARGET_OUT = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("STOCKS_KLINE_HISTORY_OUT")
+if TARGET_OUT is None:
+    TARGET_OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "kline", "history")
+os.makedirs(TARGET_OUT, exist_ok=True)
 
 indices = [
     ("sh000001", "上证综指", 800),   # daily 2024+
@@ -28,7 +30,7 @@ for code, name, cnt in indices:
         k = d['data'][code]
         arr = k.get('qfqday') or k.get('day') if isinstance(k, dict) else None
         if arr and len(arr) > 100:
-            with open(os.path.join(OUT, f"{code}.txt"), 'w') as f:
+            with open(os.path.join(TARGET_OUT, f"{code}.txt"), 'w') as f:
                 f.write(f"# {code} {name} qfq daily kline, {len(arr)} bars\n")
                 for row in arr:
                     f.write(f"{code}|{row[0]}|{row[1]}|{row[2]}|{row[3]}|{row[4]}|{row[5]}\n")
@@ -49,7 +51,7 @@ for code, name, _ in [("sh000001","上证综指",None),("sz399001","深证成指
         k = d['data'][code]
         arr = k.get('qfqmonth') or k.get('month') if isinstance(k, dict) else None
         if arr and len(arr) > 50:
-            with open(os.path.join(OUT, f"{code}.month.txt"), 'w') as f:
+            with open(os.path.join(TARGET_OUT, f"{code}.month.txt"), 'w') as f:
                 f.write(f"# {code} {name} qfq monthly kline, {len(arr)} bars\n")
                 for row in arr:
                     f.write(f"{code}|{row[0]}|{row[1]}|{row[2]}|{row[3]}|{row[4]}|{row[5]}\n")
@@ -69,7 +71,7 @@ try:
     k = d['data'][code]
     arr = k.get('qfqweek') or k.get('week') if isinstance(k, dict) else None
     if arr and len(arr) > 100:
-        with open(os.path.join(OUT, f"{code}.week.txt"), 'w') as f:
+        with open(os.path.join(TARGET_OUT, f"{code}.week.txt"), 'w') as f:
             f.write(f"# {code} qfq weekly kline, {len(arr)} bars\n")
             for row in arr:
                 f.write(f"{code}|{row[0]}|{row[1]}|{row[2]}|{row[3]}|{row[4]}|{row[5]}\n")
@@ -81,7 +83,7 @@ except Exception as e:
 from collections import defaultdict
 for code, name in [("sh000001","上证综指"),("sh000300","沪深300"),("sz399001","深证成指"),("sz399006","创业板指")]:
     months = []
-    for l in open(os.path.join(OUT, f"{code}.month.txt"), encoding='utf-8'):
+    for l in open(os.path.join(TARGET_OUT, f"{code}.month.txt"), encoding='utf-8'):
         if l.startswith('#') or '|' not in l: continue
         p = l.strip().split('|')
         if len(p) < 7: continue
@@ -98,7 +100,7 @@ for code, name in [("sh000001","上证综指"),("sh000300","沪深300"),("sz3990
         v = sum(x['v'] for x in rs)
         rows.append([y, rs[0]['o'], rs[-1]['c'], hi, lo, ret, v, len(rs)])
         prev = rs[-1]['c']
-    path = os.path.join(OUT, f"{code}.yearly.csv")
+    path = os.path.join(TARGET_OUT, f"{code}.yearly.csv")
     with open(path, 'w') as f:
         f.write("year,open,close,high,low,ret_pct,total_vol,bars\n")
         for r in rows:
@@ -106,10 +108,17 @@ for code, name in [("sh000001","上证综指"),("sh000300","沪深300"),("sz3990
             f.write(f"{r[0]},{r[1]:.2f},{r[2]:.2f},{r[3]:.2f},{r[4]:.2f},{ret_str},{int(r[6])},{r[7]}\n")
     print(f"✓ {code}.yearly.csv ({len(rows)} years)")
 
-# append updated daily_index rows for 9/22-9/30
-target_dates = ["2026-09-22","2026-09-23","2026-09-24","2026-09-28","2026-09-29","2026-09-30"]
+# backfill daily_index rows: all index bars within the last 60 days not yet recorded (idempotent)
+import datetime
+cutoff = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
 idx_codes = ["sh000001","sh000300","sh000688","sz399001","sz399006"]
-di_path = os.path.join(os.path.dirname(__file__), "..", "data", "daily_index.txt")
+def _default_daily_index():
+    ws = os.environ.get("GITHUB_WORKSPACE", "")
+    if ws:  # Actions: commit runs from the kline repo workspace, keep daily_index.txt inside it
+        return os.path.join(ws, "data", "daily_index.txt")
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "daily_index.txt")
+
+di_path = os.environ.get("STOCKS_DAILY_INDEX_PATH") or _default_daily_index()
 if not os.path.exists(di_path):
     os.makedirs(os.path.dirname(di_path), exist_ok=True)
     # actions / fresh-checkout mode: file missing -> create empty and skip append
@@ -120,11 +129,11 @@ existing = {}
 for l in open(di_path, encoding='utf-8'):
     if l.startswith('#') or '|' not in l: continue
     p = l.strip().split('|')
-    if len(p) >= 6: existing[(p[0],p[1])] = float(p[5])
+    if len(p) >= 6: existing[p[0]+'|'+p[1]] = float(p[5])
 data = {}
 for code in idx_codes:
     bars = []
-    for l in open(os.path.join(OUT, f"{code}.txt")):
+    for l in open(os.path.join(TARGET_OUT, f"{code}.txt")):
         if l.startswith('#') or '|' not in l: continue
         p = l.strip().split('|')
         if len(p) >= 7:
@@ -133,11 +142,12 @@ for code in idx_codes:
 new_rows = []
 for code in idx_codes:
     bars = data[code]
-    closes = {b['date']: b['c'] for b in bars}
     prev_c = {b['date']: bars[i-1]['c'] for i,b in enumerate(bars) if i>0}
-    for d in target_dates:
-        if d not in closes: continue
-        b = next(x for x in bars if x['date']==d)
+    for b in sorted(bars, key=lambda x: x['date'], reverse=True):
+        d = b['date']
+        if d < cutoff: break
+        key = d+'|'+code
+        if key in existing: continue
         chg = (b['c']/prev_c[d]-1)*100 if d in prev_c else 0.0
         amp = (b['h']-b['l'])/prev_c[d]*100 if d in prev_c else 0.0
         new_rows.append(f"{d}|{code}|{code}|{b['o']:.3f}|{b['c']:.3f}|{b['h']:.3f}|{b['l']:.3f}|{b['v']:.3f}|{chg:.2f}|{amp:.2f}")
@@ -147,6 +157,6 @@ with open(di_path, 'a', encoding='utf-8') as f:
         if key not in existing:
             f.write(r+"\n")
             existing[key] = 1
-print(f"\nappended {len(new_rows)} rows to {di_path}")
+print(f"\nappended {sum(1 for r in new_rows)} rows total, {len(new_rows)} new to {di_path}")
 
 print("\nDone.")
