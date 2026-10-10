@@ -7,7 +7,7 @@ Bulk collector: full A-share + index/ETF klines (tencent) -> data/allmarket/
 
 usage: python3 tools/fetch_all_market.py [workers]
 """
-import csv, json, os, sys, threading, time, urllib.request
+import csv, json, os, subprocess, sys, threading, time, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("STOCKS_KLINE_OUT") or os.path.join(ROOT, "data", "allmarket")
@@ -152,7 +152,11 @@ def load_universe():
     return [r.split("|")[0] for r in rows]
 
 def main():
-    workers = int(sys.argv[1]) if len(sys.argv) > 1 else 2
+    workers = int(sys.argv[1]) if len(sys.argv) > 1 else 3
+    checkpoint_every = int(os.environ.get("STOCKS_KLINE_CHECKPOINT_EVERY", "0"))
+    is_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+    if is_actions and not checkpoint_every:
+        checkpoint_every = 100  # auto checkpoint every 100 codes in Actions
     os.makedirs(OUT, exist_ok=True)
     universe = load_universe()
     print(f"total codes: {len(universe)}", flush=True)
@@ -173,9 +177,30 @@ def main():
     q = list(universe)
     idx = 0
     stop = threading.Event()
+    last_checkpoint = [0]  # mutable counter shared across threads via lock
+
+    def do_checkpoint():
+        """Save _progress + commit+push the bulk files (no-op on failure)."""
+        if not is_actions:
+            return
+        try:
+            ws = os.environ.get("GITHUB_WORKSPACE", "")
+            save_progress()
+            subprocess.run(["git", "-C", ws, "config", "user.name", "stocks-bot"], check=False, capture_output=True)
+            subprocess.run(["git", "-C", ws, "config", "user.email", "41888888888+stocks-bot@users.noreply.github.com"], check=False, capture_output=True)
+            # commit whatever is dirty; quiet on no-changes
+            subprocess.run(["git", "-C", ws, "add", "-A", "--", "data/", "meta/", "README.md"], check=False, capture_output=True)
+            r = subprocess.run(["git", "-C", ws, "diff", "--quiet", "HEAD"], check=False)
+            if r.returncode != 0:  # actual changes
+                ts = time.strftime("%Y%m%d_%H%M")
+                subprocess.run(["git", "-C", ws, "commit", "-m", f"nightly-kline checkpoint {ts}"], check=False, capture_output=True)
+                subprocess.run(["git", "-C", ws, "-c", "http.version=HTTP/1.1", "push", "origin", "main"], check=False, capture_output=True)
+                print(f"[checkpoint] committed & pushed {len(progress.get('done', {}))} codes done", flush=True)
+        except Exception as exc:
+            print(f"[checkpoint] failed ({exc})", flush=True)
 
     def worker():
-        nonlocal idx
+        nonlocal idx, last_checkpoint
         while not stop.is_set():
             with lock:
                 if idx >= len(q):
@@ -206,6 +231,13 @@ def main():
                     progress["failed"].append({"code": c, "got": got, "need": len(FREQS)})
                     progress["done"][c] = got
             save_progress()
+            with lock:
+                last_checkpoint[0] += 1
+                should = last_checkpoint[0] >= checkpoint_every and checkpoint_every > 0
+                if should:
+                    last_checkpoint[0] = 0
+            if should:
+                do_checkpoint()
             if len(done_set) % 200 == 0:
                 print(f"progress {len(done_set)}/{len(universe)} failed={len(progress['failed'])}", flush=True)
 
